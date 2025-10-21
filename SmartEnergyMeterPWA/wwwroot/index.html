@@ -1,0 +1,235 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Energy Meter</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#2196F3">
+    <meta name="description" content="Monitor your energy consumption in real-time">
+
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png">
+    <link rel="shortcut icon" href="/icons/favicon.ico">
+
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="/css/styles.css">
+
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-spinner">
+            <i class="fas fa-bolt"></i>
+        </div>
+        <p>Loading Energy Data...</p>
+    </div>
+
+    <!-- PWA Install Banner -->
+    <div id="install-banner" class="install-banner hidden">
+        <div class="install-content">
+            <i class="fas fa-download"></i>
+            <span>Install Smart Energy Meter for better experience</span>
+            <button id="install-btn" class="install-btn">Install</button>
+            <button id="close-banner" class="close-btn">&times;</button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="header-title">
+                    <i class="fas fa-bolt"></i>
+                    <h1>Smart Energy Meter</h1>
+                </div>
+                <div class="header-actions">
+                    <button id="refresh-btn" class="action-btn" title="Refresh Data">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button id="settings-btn" class="action-btn" title="Settings">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-item">
+                <i class="fas fa-wifi" id="connection-status"></i>
+                <span id="connection-text">Connected</span>
+            </div>
+            <div class="status-item">
+                <i class="fas fa-clock"></i>
+                <span id="last-update">Never</span>
+            </div>
+        </div>
+
+        <!-- Current Readings -->
+        <section class="current-readings">
+            <h2>Current Readings</h2>
+            <div class="readings-grid">
+                <div class="reading-card voltage">
+                    <div class="reading-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <div class="reading-content">
+                        <div class="reading-value" id="voltage-value">---</div>
+                        <div class="reading-unit">Volts</div>
+                        <div class="reading-label">Voltage</div>
+                    </div>
+                </div>
+
+                <div class="reading-card current">
+                    <div class="reading-icon">
+                        <i class="fas fa-tachometer-alt"></i>
+                    </div>
+                    <div class="reading-content">
+                        <div class="reading-value" id="current-value">---</div>
+                        <div class="reading-unit">Amperes</div>
+                        <div class="reading-label">Current</div>
+                    </div>
+                </div>
+
+                <div class="reading-card power">
+                    <div class="reading-icon">
+                        <i class="fas fa-plug"></i>
+                    </div>
+                    <div class="reading-content">
+                        <div class="reading-value" id="power-value">---</div>
+                        <div class="reading-unit">Watts</div>
+                        <div class="reading-label">Power</div>
+                    </div>
+                </div>
+
+                <div class="reading-card frequency">
+                    <div class="reading-icon">
+                        <i class="fas fa-wave-square"></i>
+                    </div>
+                    <div class="reading-content">
+                        <div class="reading-value" id="frequency-value">---</div>
+                        <div class="reading-unit">Hz</div>
+                        <div class="reading-label">Frequency</div>
+                    </div>
+                </div>
+
+                <div class="reading-card power-factor">
+                    <div class="reading-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="reading-content">
+                        <div class="reading-value" id="pf-value">---</div>
+                        <div class="reading-unit">PF</div>
+                        <div class="reading-label">Power Factor</div>
+                    </div>
+                </div>
+
+                <div class="reading-card energy">
+                    <div class="reading-icon">
+                        <i class="fas fa-battery-half"></i>
+                    </div>
+                    <div class="reading-content">
+                        <div class="reading-value" id="energy-value">---</div>
+                        <div class="reading-unit">kWh</div>
+                        <div class="reading-label">Energy (Est.)</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="charts-section">
+            <div class="section-header">
+                <h2>Historical Data</h2>
+                <select id="chart-period" class="period-selector">
+                    <option value="hour">Last Hour</option>
+                    <option value="day" selected>Last 24 Hours</option>
+                    <option value="week">Last Week</option>
+                    <option value="month">Last Month</option>
+                </select>
+            </div>
+            <div class="chart-container">
+                <canvas id="energy-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Quick Actions -->
+        <section class="quick-actions">
+            <h2>Quick Actions</h2>
+            <div class="actions-grid">
+                <button class="action-card" id="download-csv">
+                    <i class="fas fa-download"></i>
+                    <span>Download CSV</span>
+                </button>
+                <button class="action-card" id="view-history">
+                    <i class="fas fa-history"></i>
+                    <span>View History</span>
+                </button>
+                <button class="action-card" id="share-data">
+                    <i class="fas fa-share-alt"></i>
+                    <span>Share Data</span>
+                </button>
+                <button class="action-card" id="export-report">
+                    <i class="fas fa-file-export"></i>
+                    <span>Export Report</span>
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label for="api-url">Azure API URL:</label>
+                    <input type="url" id="api-url" placeholder="https://smartmeterapi-ctfmfvewe6fxaten.southafricanorth-01.azurewebsites.net/api/EnergyMeter/reading">
+                </div>
+                <div class="setting-group">
+                    <label for="device-id">Device ID:</label>
+                    <input type="text" id="device-id" placeholder="ESP8266_01">
+                </div>
+                <div class="setting-group">
+                    <label for="refresh-interval">Refresh Interval (seconds):</label>
+                    <select id="refresh-interval">
+                        <option value="5">5 seconds</option>
+                        <option value="10">10 seconds</option>
+                        <option value="30" selected>30 seconds</option>
+                        <option value="60">1 minute</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="dark-mode"> Dark Mode
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-settings" class="btn-primary">Save Settings</button>
+                <button id="reset-settings" class="btn-secondary">Reset to Default</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="/js/app.js"></script>
+    <script src="/js/pwa.js"></script>
+</body>
+</html>

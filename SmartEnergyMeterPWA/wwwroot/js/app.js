@@ -4,7 +4,7 @@ class EnergyMeterApp {
     constructor() {
         // Configuration
         this.config = {
-            apiUrl: localStorage.getItem('apiUrl') || 'https://smartmeterapi-ctfmfvewe6fxaten.southafricanorth-01.azurewebsites.net/api/EnergyMeter',
+            apiUrl: localStorage.getItem('apiUrl') || 'https://smartenergymeterapi20251028114041-b0cthrd5cdh2egh3.southafricanorth-01.azurewebsites.net/api/EnergyMeter',
             deviceId: localStorage.getItem('deviceId') || 'ESP8266_01',
             refreshInterval: parseInt(localStorage.getItem('refreshInterval')) || 1, // 1 second for near real-time
             darkMode: localStorage.getItem('darkMode') === 'true'

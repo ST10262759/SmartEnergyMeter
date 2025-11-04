@@ -24,7 +24,7 @@ The system captures voltage, current, power, and energy usage and streams data t
 ## 🧠 Architecture
 
 ESP32 + Energy Sensor → ASP.NET Web API (Azure) → SQL Database
-↓
+ → 
 PWA UI
 
 ---

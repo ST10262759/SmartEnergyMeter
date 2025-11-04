@@ -1,6 +1,4 @@
-﻿
-
-class EnergyMeterApp {
+﻿class EnergyMeterApp {
     constructor() {
         // Configuration
         this.config = {
@@ -12,7 +10,6 @@ class EnergyMeterApp {
 
         // State
         this.isOnline = navigator.onLine;
-        this.lastUpdate = null;
         this.pollingTimer = null;
         this.chart = null;
         this.retryCount = 0;
@@ -64,14 +61,8 @@ class EnergyMeterApp {
         document.getElementById('export-report').addEventListener('click', () => this.exportReport());
         document.getElementById('chart-period').addEventListener('change', (e) => this.updateChart(e.target.value));
 
-        window.addEventListener('online', () => {
-            this.isOnline = true;
-            this.updateConnectionStatus();
-        });
-        window.addEventListener('offline', () => {
-            this.isOnline = false;
-            this.updateConnectionStatus();
-        });
+        window.addEventListener('online', () => { this.isOnline = true; this.updateConnectionStatus(); });
+        window.addEventListener('offline', () => { this.isOnline = false; this.updateConnectionStatus(); });
 
         document.getElementById('settings-modal').addEventListener('click', (e) => {
             if (e.target.id === 'settings-modal') this.hideSettingsModal();
@@ -90,7 +81,6 @@ class EnergyMeterApp {
             document.documentElement.setAttribute('data-theme', 'dark');
             document.getElementById('dark-mode').checked = true;
         }
-
         document.getElementById('api-url').value = this.config.apiUrl;
         document.getElementById('device-id').value = this.config.deviceId;
         document.getElementById('refresh-interval').value = this.config.refreshInterval;
@@ -99,8 +89,13 @@ class EnergyMeterApp {
     async loadInitialData() {
         console.log('📊 Loading initial data...');
         await this.loadLatestReading();
-        await this.loadHistoricalData();
-      
+        await this.loadHistoricalData(); // Stub method added
+    }
+
+    // --- STUB FOR HISTORICAL DATA ---
+    async loadHistoricalData() {
+        console.log('📜 Historical data loading is not implemented yet.');
+        // Future implementation can fetch historical readings here
     }
 
     async loadLatestReading() {
@@ -108,7 +103,6 @@ class EnergyMeterApp {
             const url = `${this.config.apiUrl}/readings/latest?deviceId=${this.config.deviceId}`;
             const data = await this.apiCall(url);
 
-            // Handle single object response
             if (data && typeof data === 'object') {
                 this.updateReadingsDisplay(data);
                 this.lastUpdate = new Date();
@@ -123,26 +117,19 @@ class EnergyMeterApp {
         }
     }
 
-
     async apiCall(url, options = {}) {
         if (!this.isOnline) throw new Error('No internet connection');
 
-        const defaultOptions = {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 10000
-        };
+        const defaultOptions = { method: 'GET', headers: { 'Content-Type': 'application/json' }, timeout: 10000 };
         const finalOptions = { ...defaultOptions, ...options };
 
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), finalOptions.timeout);
-
             const response = await fetch(url, { ...finalOptions, signal: controller.signal });
             clearTimeout(timeoutId);
 
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-
             return await response.json();
         } catch (error) {
             if (error.name === 'AbortError') throw new Error('Request timeout');
@@ -151,22 +138,18 @@ class EnergyMeterApp {
     }
 
     updateReadingsDisplay(data) {
-        // Voltage, Current, Power, Frequency, PF
         this.updateReadingValue('voltage-value', data.voltage, 2, 'V');
         this.updateReadingValue('current-value', data.current, 3, 'A');
         this.updateReadingValue('power-value', data.power, 2, 'W');
         this.updateReadingValue('frequency-value', data.frequency, 1, 'Hz');
         this.updateReadingValue('pf-value', data.powerFactor, 2, '');
 
-        // Energy in kWh (incremental based on interval)
-        const deltaEnergy = data.power * this.config.refreshInterval / 3600 / 1000; // W * s / 3600 / 1000 = kWh
+        const deltaEnergy = data.power * this.config.refreshInterval / 3600 / 1000;
         this.totalEnergy += deltaEnergy;
         this.updateReadingValue('energy-value', this.totalEnergy, 3, 'kWh');
 
-        // Chart update (append latest reading)
         this.appendChartData(data);
 
-        // Animate reading cards
         document.querySelectorAll('.reading-card').forEach(card => {
             card.classList.remove('fade-in');
             void card.offsetWidth;
@@ -177,18 +160,15 @@ class EnergyMeterApp {
     updateReadingValue(elementId, value, decimals, unit) {
         const element = document.getElementById(elementId);
         if (!element) return;
-
         const currentValue = parseFloat(element.textContent) || 0;
         const newValue = parseFloat(value) || 0;
-
         this.animateValue(element, currentValue, newValue, decimals);
         this.updateReadingColor(element, elementId, newValue);
     }
 
     animateValue(element, start, end, decimals) {
-        const duration = 400; // fast animation
+        const duration = 400;
         const startTime = performance.now();
-
         const animate = (currentTime) => {
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
@@ -196,7 +176,6 @@ class EnergyMeterApp {
             element.textContent = currentValue.toFixed(decimals);
             if (progress < 1) requestAnimationFrame(animate);
         };
-
         requestAnimationFrame(animate);
     }
 
@@ -252,23 +231,19 @@ class EnergyMeterApp {
 
     appendChartData(data) {
         if (!this.chart) return;
-
         const timeLabel = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         this.chart.data.labels.push(timeLabel);
         this.chart.data.datasets[0].data.push(data.power);
         this.chart.data.datasets[1].data.push(data.voltage);
 
-        // Keep last 30 points for performance
         if (this.chart.data.labels.length > 30) {
             this.chart.data.labels.shift();
             this.chart.data.datasets[0].data.shift();
             this.chart.data.datasets[1].data.shift();
         }
-
         this.chart.update('active');
     }
 
-    // --- Continuous polling for near real-time ---
     startPolling() {
         const poll = async () => {
             if (this.isOnline) await this.loadLatestReading();
@@ -280,7 +255,6 @@ class EnergyMeterApp {
     updateConnectionStatus() {
         const connectionStatus = document.getElementById('connection-status');
         const connectionText = document.getElementById('connection-text');
-
         if (this.isOnline) {
             connectionStatus.className = 'fas fa-wifi text-success';
             connectionText.textContent = 'Connected';
@@ -314,9 +288,9 @@ class EnergyMeterApp {
         connectionText.className = 'text-danger';
     }
 
-    // --- Settings Modal ---
     showSettingsModal() { document.getElementById('settings-modal').classList.add('show'); }
     hideSettingsModal() { document.getElementById('settings-modal').classList.remove('show'); }
+
     saveSettings() {
         const apiUrl = document.getElementById('api-url').value.trim();
         const deviceId = document.getElementById('device-id').value.trim();
@@ -335,7 +309,6 @@ class EnergyMeterApp {
             localStorage.setItem('darkMode', darkMode);
 
             document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-
             this.hideSettingsModal();
         }
     }
@@ -350,74 +323,41 @@ class EnergyMeterApp {
 
     hideLoadingScreen() { document.getElementById('loading-screen').style.display = 'none'; }
 
-    // --- Quick Actions ---
-    shareData() {
-        // Prepare data to share
-        const data = {
-            time: new Date().toLocaleString(),
-            voltage: document.getElementById('voltage-value').textContent,
-            current: document.getElementById('current-value').textContent,
-            power: document.getElementById('power-value').textContent,
-            frequency: document.getElementById('frequency-value').textContent,
-            pf: document.getElementById('pf-value').textContent,
-            energy: document.getElementById('energy-value').textContent
-        };
-        const shareText = `Smart Energy Meter Reading:\nTime: ${data.time}\nVoltage: ${data.voltage} V\nCurrent: ${data.current} A\nPower: ${data.power} W\nFrequency: ${data.frequency} Hz\nPF: ${data.pf}\nEnergy: ${data.energy} kWh`;
-
-        if (navigator.share) {
-            navigator.share({
-                title: 'Smart Energy Meter Reading',
-                text: shareText
-            })
-                .then(() => console.log('Data shared successfully'))
-                .catch((error) => console.error('Error sharing data:', error));
-        } else {
-            // Fallback: copy to clipboard
-            navigator.clipboard.writeText(shareText)
-                .then(() => alert('Reading copied to clipboard for sharing!'))
-                .catch(() => alert('Unable to share or copy data.'));
-        }
-    }
-
-    exportReport() {
-        // Generate CSV report for last 30 chart points
-        if (!this.chart) return alert('No chart data to export!');
-
-        const rows = [['Time', ...this.chart.data.datasets.map(ds => ds.label)]];
-        this.chart.data.labels.forEach((label, i) => {
-            const row = [label];
-            this.chart.data.datasets.forEach(ds => row.push(ds.data[i]));
-            rows.push(row);
-        });
-
+    downloadCSV() {
+        const rows = [['Time', 'Voltage (V)', 'Current (A)', 'Power (W)', 'Frequency (Hz)', 'PF', 'Energy (kWh)']];
+        const time = new Date().toLocaleTimeString();
+        rows.push([
+            time,
+            document.getElementById('voltage-value').textContent,
+            document.getElementById('current-value').textContent,
+            document.getElementById('power-value').textContent,
+            document.getElementById('frequency-value').textContent,
+            document.getElementById('pf-value').textContent,
+            document.getElementById('energy-value').textContent
+        ]);
         const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `energy_report_${Date.now()}.csv`);
+        link.setAttribute("download", `energy_reading_${Date.now()}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-
-        alert('📝 Report exported successfully!');
     }
 
+    showHistoryView() { alert('📜 Historical view coming soon!'); }
+    shareData() { alert('🔗 Share functionality coming soon!'); }
+    exportReport() { alert('📝 Export report coming soon!'); }
+}
 
-// Unregister old service workers to clear cached PWA versions
+// Unregister old service workers
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations()
-        .then(registrations => {
-            registrations.forEach(reg => {
-                console.log('Unregistering service worker:', reg);
-                reg.unregister();
-            });
-        })
+        .then(registrations => { registrations.forEach(reg => reg.unregister()); })
         .catch(err => console.error('Error unregistering service workers:', err));
 }
 
-
-
-// Initialize the app
+// Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     window.energyMeterApp = new EnergyMeterApp();
 });

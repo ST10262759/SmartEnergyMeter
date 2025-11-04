@@ -84,12 +84,12 @@ cd smart-energy-meter-pwa
 ```
 
 ---
-🔒 Security
+## 🔒 Security
 
-API secured with JWT tokens
+- API secured with JWT tokens
 
-HTTPS requests enforced
+- HTTPS requests enforced
 
-LocalStorage only stores non-sensitive config
+- LocalStorage only stores non-sensitive config
 
 

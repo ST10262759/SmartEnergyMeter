@@ -100,16 +100,17 @@ class EnergyMeterApp {
         console.log('📊 Loading initial data...');
         await this.loadLatestReading();
         await this.loadHistoricalData();
+      
     }
 
     async loadLatestReading() {
         try {
-            const url = `${this.config.apiUrl}/readings?deviceId=${this.config.deviceId}&page=1&pageSize=1`;
+            const url = `${this.config.apiUrl}/readings/latest?deviceId=${this.config.deviceId}`;
             const data = await this.apiCall(url);
 
-            if (data && Array.isArray(data) && data.length > 0) {
-                const reading = data[0];
-                this.updateReadingsDisplay(reading);
+            // Handle single object response
+            if (data && typeof data === 'object') {
+                this.updateReadingsDisplay(data);
                 this.lastUpdate = new Date();
                 this.updateLastUpdateTime();
                 this.retryCount = 0;
@@ -121,6 +122,7 @@ class EnergyMeterApp {
             this.handleAPIError(error);
         }
     }
+
 
     async apiCall(url, options = {}) {
         if (!this.isOnline) throw new Error('No internet connection');
@@ -349,33 +351,71 @@ class EnergyMeterApp {
     hideLoadingScreen() { document.getElementById('loading-screen').style.display = 'none'; }
 
     // --- Quick Actions ---
-    downloadCSV() {
-        const rows = [['Time', 'Voltage (V)', 'Current (A)', 'Power (W)', 'Frequency (Hz)', 'PF', 'Energy (kWh)']];
-        const time = new Date().toLocaleTimeString();
-        rows.push([
-            time,
-            document.getElementById('voltage-value').textContent,
-            document.getElementById('current-value').textContent,
-            document.getElementById('power-value').textContent,
-            document.getElementById('frequency-value').textContent,
-            document.getElementById('pf-value').textContent,
-            document.getElementById('energy-value').textContent
-        ]);
+    shareData() {
+        // Prepare data to share
+        const data = {
+            time: new Date().toLocaleString(),
+            voltage: document.getElementById('voltage-value').textContent,
+            current: document.getElementById('current-value').textContent,
+            power: document.getElementById('power-value').textContent,
+            frequency: document.getElementById('frequency-value').textContent,
+            pf: document.getElementById('pf-value').textContent,
+            energy: document.getElementById('energy-value').textContent
+        };
+        const shareText = `Smart Energy Meter Reading:\nTime: ${data.time}\nVoltage: ${data.voltage} V\nCurrent: ${data.current} A\nPower: ${data.power} W\nFrequency: ${data.frequency} Hz\nPF: ${data.pf}\nEnergy: ${data.energy} kWh`;
+
+        if (navigator.share) {
+            navigator.share({
+                title: 'Smart Energy Meter Reading',
+                text: shareText
+            })
+                .then(() => console.log('Data shared successfully'))
+                .catch((error) => console.error('Error sharing data:', error));
+        } else {
+            // Fallback: copy to clipboard
+            navigator.clipboard.writeText(shareText)
+                .then(() => alert('Reading copied to clipboard for sharing!'))
+                .catch(() => alert('Unable to share or copy data.'));
+        }
+    }
+
+    exportReport() {
+        // Generate CSV report for last 30 chart points
+        if (!this.chart) return alert('No chart data to export!');
+
+        const rows = [['Time', ...this.chart.data.datasets.map(ds => ds.label)]];
+        this.chart.data.labels.forEach((label, i) => {
+            const row = [label];
+            this.chart.data.datasets.forEach(ds => row.push(ds.data[i]));
+            rows.push(row);
+        });
 
         const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `energy_reading_${Date.now()}.csv`);
+        link.setAttribute("download", `energy_report_${Date.now()}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+
+        alert('📝 Report exported successfully!');
     }
 
-    showHistoryView() { alert('📜 Historical view coming soon!'); }
-    shareData() { alert('🔗 Share functionality coming soon!'); }
-    exportReport() { alert('📝 Export report coming soon!'); }
+
+// Unregister old service workers to clear cached PWA versions
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations()
+        .then(registrations => {
+            registrations.forEach(reg => {
+                console.log('Unregistering service worker:', reg);
+                reg.unregister();
+            });
+        })
+        .catch(err => console.error('Error unregistering service workers:', err));
 }
+
+
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {

@@ -10,40 +10,31 @@ app.UseDefaultFiles(new DefaultFilesOptions
     DefaultFileNames = new List<string> { "login.html" }
 });
 
-// Map specific route for root to serve login.html
-app.MapGet("/", async context =>
-{
-    context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync("wwwroot/login.html");
-});
-
-// Optional: Explicitly map /login route
-app.MapGet("/login", async context =>
-{
-    context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync("wwwroot/login.html");
-});
-
-// Optional: Explicitly map /index route (protected by client-side auth)
-app.MapGet("/index", async context =>
-{
-    context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync("wwwroot/index.html");
-});
-
-// Fallback for all other routes - serve login.html for unmatched routes
+// Fallback for SPA routing - serve the appropriate file based on path
 app.MapFallback(async context =>
 {
-    // Check if the request is for a static file (has extension)
     var path = context.Request.Path.Value;
+
+    // If requesting a file with extension, return 404
     if (!string.IsNullOrEmpty(path) && Path.HasExtension(path))
     {
-        // Let static files middleware handle it (404 if not found)
         context.Response.StatusCode = 404;
         return;
     }
 
-    // For routes without extensions, serve login.html
+    // Check if user is trying to access index (main app)
+    if (path != null && (path.Contains("index") || path == "/"))
+    {
+        var indexPath = Path.Combine(app.Environment.WebRootPath, "index.html");
+        if (File.Exists(indexPath))
+        {
+            context.Response.ContentType = "text/html";
+            await context.Response.SendFileAsync(indexPath);
+            return;
+        }
+    }
+
+    // Default to login page for other routes
     context.Response.ContentType = "text/html";
     await context.Response.SendFileAsync("wwwroot/login.html");
 });

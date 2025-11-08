@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | Smart Energy Meter</title>
+    <title>Register | Smart Energy Meter</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <style>
@@ -100,23 +100,6 @@
             background: rgba(255,255,255,0.85);
         }
 
-        .remember {
-            font-size: 14px; /* Slightly larger for better readability */
-            display: flex;
-            align-items: center;
-            gap: 10px; /* More space between checkbox and text */
-            margin-top: 10px; /* Slightly more margin from inputs */
-            justify-content: flex-start; /* Align checkbox and text to left side */
-            opacity: 0.9;
-        }
-
-            .remember input[type="checkbox"] {
-                width: 18px; /* Slightly bigger checkbox */
-                height: 18px;
-                accent-color: #ffca28; /* Match your button color for style */
-            }
-
-
         button {
             width: 100%;
             padding: 14px;
@@ -136,13 +119,13 @@
                 transform: translateY(-2px);
             }
 
-        .register-link {
+        .login-link {
             margin-top: 14px;
             font-size: 14px;
             opacity: .9;
         }
 
-            .register-link a {
+            .login-link a {
                 color: #ffeb3b;
                 font-weight: bold;
                 text-decoration: none;
@@ -156,35 +139,39 @@
             border-radius: 6px;
             font-size: 14px;
         }
+
+        .success {
+            display: none;
+            margin-top: 8px;
+            background: rgba(129, 199, 132, 0.3);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
     </style>
 </head>
-
 <body>
     <div class="energy-ring"></div>
 
     <div class="container">
         <i class="fas fa-bolt icon"></i>
-        <h2>Welcome Back</h2>
+        <h2>Create Account</h2>
 
         <div id="errorBox" class="error"></div>
+        <div id="successBox" class="success">Registration successful. Redirecting...</div>
 
-        <input id="email" placeholder="Email">
-        <input id="password" type="password" placeholder="Password">
+        <input id="fullName" placeholder="Full Name" required>
+        <input id="email" placeholder="Email" required>
+        <input id="password" type="password" placeholder="Password" required>
+        <input id="deviceId" placeholder="Device ID (e.g. ESP8266_01)" required>
 
-        <div style="width:100%; display:flex; justify-content:flex-start;">
-            <label class="remember">
-                <input type="checkbox" id="rememberMe"> Remember me
-            </label>
-        </div>
+        <button id="registerBtn">Register</button>
 
-
-        <button id="loginBtn">Login</button>
-
-        <div class="register-link">
-            New here? <a href="register.html">Create an account</a>
+        <div class="login-link">
+            Already have an account? <a href="login.html">Login</a>
         </div>
     </div>
 
-    <script src="/js/login.js"></script>
+    <script src="/js/register.js"></script>
 </body>
 </html>

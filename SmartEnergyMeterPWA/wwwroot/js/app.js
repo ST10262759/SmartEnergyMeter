@@ -1,32 +1,61 @@
-﻿
-
-class EnergyMeterApp {
+﻿class EnergyMeterApp {
     constructor() {
-        // Configuration
+        // Configuration - Store in memory instead of localStorage
         this.config = {
-            apiUrl: localStorage.getItem('apiUrl') || 'https://smartenergymeterapi20251028114041-b0cthrd5cdh2egh3.southafricanorth-01.azurewebsites.net/api/EnergyMeter',
-            deviceId: localStorage.getItem('deviceId') || 'ESP8266_01',
-            refreshInterval: parseInt(localStorage.getItem('refreshInterval')) || 1, // 1 second for near real-time
-            darkMode: localStorage.getItem('darkMode') === 'true'
+            apiUrl: 'https://smartenergymeterapi20251028114041-b0cthrd5cdh2egh3.southafricanorth-01.azurewebsites.net/api/EnergyMeter',
+            deviceId: 'ESP8266_01',
+            refreshInterval: 30, // Default to 30 seconds
+            darkMode: false
         };
+
+        // Try to load from localStorage (fallback)
+        this.loadConfigFromStorage();
 
         // State
         this.isOnline = navigator.onLine;
-        this.lastUpdate = null;
         this.pollingTimer = null;
         this.chart = null;
         this.retryCount = 0;
         this.maxRetries = 3;
-        this.totalEnergy = 0; // track cumulative energy in kWh
+        this.totalEnergy = 0;
+        this.lastUpdate = null;
+        this.historicalData = []; // Store historical readings
 
         // Initialize
         this.init();
+    }
+
+    loadConfigFromStorage() {
+        try {
+            if (typeof localStorage !== 'undefined') {
+                this.config.apiUrl = localStorage.getItem('apiUrl') || this.config.apiUrl;
+                this.config.deviceId = localStorage.getItem('deviceId') || this.config.deviceId;
+                this.config.refreshInterval = parseInt(localStorage.getItem('refreshInterval')) || this.config.refreshInterval;
+                this.config.darkMode = localStorage.getItem('darkMode') === 'true';
+            }
+        } catch (error) {
+            console.warn('localStorage not available, using defaults:', error);
+        }
     }
 
     async init() {
         try {
             console.log('🚀 Initializing Smart Energy Meter PWA');
 
+            // Verify DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => this.continueInit());
+            } else {
+                this.continueInit();
+            }
+        } catch (error) {
+            console.error('❌ Error initializing PWA:', error);
+            this.showError('Failed to initialize application: ' + error.message);
+        }
+    }
+
+    async continueInit() {
+        try {
             // Setup event listeners
             this.setupEventListeners();
 
@@ -47,35 +76,53 @@ class EnergyMeterApp {
 
             console.log('✅ PWA initialized successfully');
         } catch (error) {
-            console.error('❌ Error initializing PWA:', error);
-            this.showError('Failed to initialize application');
+            console.error('❌ Error in continueInit:', error);
+            this.showError('Failed to initialize: ' + error.message);
         }
     }
 
     setupEventListeners() {
-        document.getElementById('refresh-btn').addEventListener('click', () => this.loadLatestReading());
-        document.getElementById('settings-btn').addEventListener('click', () => this.showSettingsModal());
-        document.getElementById('save-settings').addEventListener('click', () => this.saveSettings());
-        document.getElementById('reset-settings').addEventListener('click', () => this.resetSettings());
-        document.querySelector('.close-modal').addEventListener('click', () => this.hideSettingsModal());
-        document.getElementById('download-csv').addEventListener('click', () => this.downloadCSV());
-        document.getElementById('view-history').addEventListener('click', () => this.showHistoryView());
-        document.getElementById('share-data').addEventListener('click', () => this.shareData());
-        document.getElementById('export-report').addEventListener('click', () => this.exportReport());
-        document.getElementById('chart-period').addEventListener('change', (e) => this.updateChart(e.target.value));
+        const addListener = (id, event, handler) => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.addEventListener(event, handler);
+                console.log(`✓ Listener added for ${id}`);
+            } else {
+                console.warn(`⚠ Element not found: ${id}`);
+            }
+        };
+
+        addListener('refresh-btn', 'click', () => this.loadLatestReading());
+        addListener('settings-btn', 'click', () => this.showSettingsModal());
+        addListener('save-settings', 'click', () => this.saveSettings());
+        addListener('reset-settings', 'click', () => this.resetSettings());
+        addListener('download-csv', 'click', () => this.downloadCSV());
+        addListener('view-history', 'click', () => this.showHistoryView());
+        addListener('share-data', 'click', () => this.shareData());
+        addListener('export-report', 'click', () => this.exportReport());
+        addListener('chart-period', 'change', (e) => this.updateChart(e.target.value));
+
+        const closeBtn = document.querySelector('.close-modal');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => this.hideSettingsModal());
+        }
 
         window.addEventListener('online', () => {
             this.isOnline = true;
             this.updateConnectionStatus();
         });
+
         window.addEventListener('offline', () => {
             this.isOnline = false;
             this.updateConnectionStatus();
         });
 
-        document.getElementById('settings-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'settings-modal') this.hideSettingsModal();
-        });
+        const modal = document.getElementById('settings-modal');
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target.id === 'settings-modal') this.hideSettingsModal();
+            });
+        }
 
         document.addEventListener('keydown', (e) => {
             if (e.key === 'r' && (e.ctrlKey || e.metaKey)) {
@@ -88,28 +135,46 @@ class EnergyMeterApp {
     applySettings() {
         if (this.config.darkMode) {
             document.documentElement.setAttribute('data-theme', 'dark');
-            document.getElementById('dark-mode').checked = true;
+            const darkModeCheckbox = document.getElementById('dark-mode');
+            if (darkModeCheckbox) darkModeCheckbox.checked = true;
         }
 
-        document.getElementById('api-url').value = this.config.apiUrl;
-        document.getElementById('device-id').value = this.config.deviceId;
-        document.getElementById('refresh-interval').value = this.config.refreshInterval;
+        const apiUrlInput = document.getElementById('api-url');
+        const deviceIdInput = document.getElementById('device-id');
+        const refreshIntervalInput = document.getElementById('refresh-interval');
+
+        if (apiUrlInput) apiUrlInput.value = this.config.apiUrl;
+        if (deviceIdInput) deviceIdInput.value = this.config.deviceId;
+        if (refreshIntervalInput) refreshIntervalInput.value = this.config.refreshInterval;
     }
 
     async loadInitialData() {
         console.log('📊 Loading initial data...');
         await this.loadLatestReading();
-        await this.loadHistoricalData();
     }
 
     async loadLatestReading() {
         try {
-            const url = `${this.config.apiUrl}/readings?deviceId=${this.config.deviceId}&page=1&pageSize=1`;
+            const url = `${this.config.apiUrl}/readings/latest?deviceId=${this.config.deviceId}`;
+            console.log('📡 Fetching from:', url);
             const data = await this.apiCall(url);
 
-            if (data && Array.isArray(data) && data.length > 0) {
-                const reading = data[0];
-                this.updateReadingsDisplay(reading);
+            if (data && typeof data === 'object') {
+                // Add timestamp if not present
+                data.timestamp = data.timestamp || new Date().toISOString();
+
+                // Store in historical data
+                this.historicalData.push({
+                    ...data,
+                    timestamp: data.timestamp
+                });
+
+                // Keep only last 100 readings
+                if (this.historicalData.length > 100) {
+                    this.historicalData.shift();
+                }
+
+                this.updateReadingsDisplay(data);
                 this.lastUpdate = new Date();
                 this.updateLastUpdateTime();
                 this.retryCount = 0;
@@ -136,10 +201,17 @@ class EnergyMeterApp {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), finalOptions.timeout);
 
-            const response = await fetch(url, { ...finalOptions, signal: controller.signal });
+            const response = await fetch(url, {
+                method: finalOptions.method,
+                headers: finalOptions.headers,
+                signal: controller.signal
+            });
+
             clearTimeout(timeoutId);
 
-            if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
 
             return await response.json();
         } catch (error) {
@@ -149,22 +221,18 @@ class EnergyMeterApp {
     }
 
     updateReadingsDisplay(data) {
-        // Voltage, Current, Power, Frequency, PF
         this.updateReadingValue('voltage-value', data.voltage, 2, 'V');
         this.updateReadingValue('current-value', data.current, 3, 'A');
         this.updateReadingValue('power-value', data.power, 2, 'W');
         this.updateReadingValue('frequency-value', data.frequency, 1, 'Hz');
         this.updateReadingValue('pf-value', data.powerFactor, 2, '');
 
-        // Energy in kWh (incremental based on interval)
-        const deltaEnergy = data.power * this.config.refreshInterval / 3600 / 1000; // W * s / 3600 / 1000 = kWh
+        const deltaEnergy = data.power * this.config.refreshInterval / 3600 / 1000;
         this.totalEnergy += deltaEnergy;
         this.updateReadingValue('energy-value', this.totalEnergy, 3, 'kWh');
 
-        // Chart update (append latest reading)
         this.appendChartData(data);
 
-        // Animate reading cards
         document.querySelectorAll('.reading-card').forEach(card => {
             card.classList.remove('fade-in');
             void card.offsetWidth;
@@ -174,19 +242,19 @@ class EnergyMeterApp {
 
     updateReadingValue(elementId, value, decimals, unit) {
         const element = document.getElementById(elementId);
-        if (!element) return;
-
+        if (!element) {
+            console.warn(`Element not found: ${elementId}`);
+            return;
+        }
         const currentValue = parseFloat(element.textContent) || 0;
         const newValue = parseFloat(value) || 0;
-
         this.animateValue(element, currentValue, newValue, decimals);
         this.updateReadingColor(element, elementId, newValue);
     }
 
     animateValue(element, start, end, decimals) {
-        const duration = 400; // fast animation
+        const duration = 400;
         const startTime = performance.now();
-
         const animate = (currentTime) => {
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
@@ -194,7 +262,6 @@ class EnergyMeterApp {
             element.textContent = currentValue.toFixed(decimals);
             if (progress < 1) requestAnimationFrame(animate);
         };
-
         requestAnimationFrame(animate);
     }
 
@@ -220,14 +287,39 @@ class EnergyMeterApp {
     }
 
     initializeChart() {
-        const ctx = document.getElementById('energy-chart').getContext('2d');
+        const canvas = document.getElementById('energy-chart');
+        if (!canvas) {
+            console.warn('Chart canvas not found');
+            return;
+        }
+
+        if (typeof Chart === 'undefined') {
+            console.warn('Chart.js not loaded');
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
         this.chart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: [],
                 datasets: [
-                    { label: 'Power (W)', data: [], borderColor: '#2196F3', backgroundColor: 'rgba(33,150,243,0.1)', fill: true, tension: 0.4 },
-                    { label: 'Voltage (V)', data: [], borderColor: '#F44336', backgroundColor: 'rgba(244,67,54,0.1)', fill: false, yAxisID: 'y1' }
+                    {
+                        label: 'Power (W)',
+                        data: [],
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33,150,243,0.1)',
+                        fill: true,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Voltage (V)',
+                        data: [],
+                        borderColor: '#F44336',
+                        backgroundColor: 'rgba(244,67,54,0.1)',
+                        fill: false,
+                        yAxisID: 'y1'
+                    }
                 ]
             },
             options: {
@@ -236,7 +328,13 @@ class EnergyMeterApp {
                 interaction: { intersect: false, mode: 'index' },
                 plugins: {
                     legend: { position: 'top' },
-                    tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', titleColor: '#fff', bodyColor: '#fff', borderColor: '#2196F3', borderWidth: 1 }
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        borderColor: '#2196F3',
+                        borderWidth: 1
+                    }
                 },
                 scales: {
                     x: { display: true, title: { display: true, text: 'Time' } },
@@ -250,27 +348,29 @@ class EnergyMeterApp {
 
     appendChartData(data) {
         if (!this.chart) return;
-
-        const timeLabel = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const timeLabel = new Date().toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
         this.chart.data.labels.push(timeLabel);
         this.chart.data.datasets[0].data.push(data.power);
         this.chart.data.datasets[1].data.push(data.voltage);
 
-        // Keep last 30 points for performance
         if (this.chart.data.labels.length > 30) {
             this.chart.data.labels.shift();
             this.chart.data.datasets[0].data.shift();
             this.chart.data.datasets[1].data.shift();
         }
-
         this.chart.update('active');
     }
 
-    // --- Continuous polling for near real-time ---
     startPolling() {
         const poll = async () => {
-            if (this.isOnline) await this.loadLatestReading();
-            setTimeout(poll, this.config.refreshInterval * 1000);
+            if (this.isOnline) {
+                await this.loadLatestReading();
+            }
+            this.pollingTimer = setTimeout(poll, this.config.refreshInterval * 1000);
         };
         poll();
     }
@@ -278,6 +378,8 @@ class EnergyMeterApp {
     updateConnectionStatus() {
         const connectionStatus = document.getElementById('connection-status');
         const connectionText = document.getElementById('connection-text');
+
+        if (!connectionStatus || !connectionText) return;
 
         if (this.isOnline) {
             connectionStatus.className = 'fas fa-wifi text-success';
@@ -290,7 +392,10 @@ class EnergyMeterApp {
 
     updateLastUpdateTime() {
         const lastUpdateElement = document.getElementById('last-update');
-        lastUpdateElement.textContent = this.lastUpdate ? this.lastUpdate.toLocaleTimeString() : 'Never';
+        if (lastUpdateElement) {
+            lastUpdateElement.textContent = this.lastUpdate ?
+                this.lastUpdate.toLocaleTimeString() : 'Never';
+        }
     }
 
     handleAPIError(error) {
@@ -308,18 +413,38 @@ class EnergyMeterApp {
     showError(message) {
         console.error('❌', message);
         const connectionText = document.getElementById('connection-text');
-        connectionText.textContent = 'Error';
-        connectionText.className = 'text-danger';
+        if (connectionText) {
+            connectionText.textContent = 'Error';
+            connectionText.className = 'text-danger';
+        }
+        alert(message);
     }
 
-    // --- Settings Modal ---
-    showSettingsModal() { document.getElementById('settings-modal').classList.add('show'); }
-    hideSettingsModal() { document.getElementById('settings-modal').classList.remove('show'); }
+    showSettingsModal() {
+        const modal = document.getElementById('settings-modal');
+        if (modal) {
+            // Your CSS uses :not(.hidden) to show the modal
+            modal.classList.remove('hidden');
+            console.log('✓ Settings modal opened');
+        } else {
+            console.error('❌ Settings modal not found');
+        }
+    }
+
+    hideSettingsModal() {
+        const modal = document.getElementById('settings-modal');
+        if (modal) {
+            // Your CSS hides modal when .hidden class is present
+            modal.classList.add('hidden');
+            console.log('✓ Settings modal closed');
+        }
+    }
+
     saveSettings() {
-        const apiUrl = document.getElementById('api-url').value.trim();
-        const deviceId = document.getElementById('device-id').value.trim();
-        const refreshInterval = parseInt(document.getElementById('refresh-interval').value);
-        const darkMode = document.getElementById('dark-mode').checked;
+        const apiUrl = document.getElementById('api-url')?.value.trim();
+        const deviceId = document.getElementById('device-id')?.value.trim();
+        const refreshInterval = parseInt(document.getElementById('refresh-interval')?.value);
+        const darkMode = document.getElementById('dark-mode')?.checked;
 
         if (apiUrl && deviceId && refreshInterval > 0) {
             this.config.apiUrl = apiUrl;
@@ -327,57 +452,363 @@ class EnergyMeterApp {
             this.config.refreshInterval = refreshInterval;
             this.config.darkMode = darkMode;
 
-            localStorage.setItem('apiUrl', apiUrl);
-            localStorage.setItem('deviceId', deviceId);
-            localStorage.setItem('refreshInterval', refreshInterval);
-            localStorage.setItem('darkMode', darkMode);
+            // Try to save to localStorage (fallback)
+            try {
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('apiUrl', apiUrl);
+                    localStorage.setItem('deviceId', deviceId);
+                    localStorage.setItem('refreshInterval', refreshInterval.toString());
+                    localStorage.setItem('darkMode', darkMode.toString());
+                }
+            } catch (error) {
+                console.warn('Could not save to localStorage:', error);
+            }
 
             document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
 
+            // Restart polling with new settings
+            if (this.pollingTimer) {
+                clearTimeout(this.pollingTimer);
+            }
+            this.startPolling();
+
             this.hideSettingsModal();
+            alert('Settings saved successfully!');
+        } else {
+            alert('Please fill in all required fields');
         }
     }
 
     resetSettings() {
-        localStorage.removeItem('apiUrl');
-        localStorage.removeItem('deviceId');
-        localStorage.removeItem('refreshInterval');
-        localStorage.removeItem('darkMode');
+        try {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.clear();
+            }
+        } catch (error) {
+            console.warn('Could not clear localStorage:', error);
+        }
         window.location.reload();
     }
 
-    hideLoadingScreen() { document.getElementById('loading-screen').style.display = 'none'; }
-
-    // --- Quick Actions ---
-    downloadCSV() {
-        const rows = [['Time', 'Voltage (V)', 'Current (A)', 'Power (W)', 'Frequency (Hz)', 'PF', 'Energy (kWh)']];
-        const time = new Date().toLocaleTimeString();
-        rows.push([
-            time,
-            document.getElementById('voltage-value').textContent,
-            document.getElementById('current-value').textContent,
-            document.getElementById('power-value').textContent,
-            document.getElementById('frequency-value').textContent,
-            document.getElementById('pf-value').textContent,
-            document.getElementById('energy-value').textContent
-        ]);
-
-        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `energy_reading_${Date.now()}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    hideLoadingScreen() {
+        const loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+            loadingScreen.style.display = 'none';
+        }
     }
 
-    showHistoryView() { alert('📜 Historical view coming soon!'); }
-    shareData() { alert('🔗 Share functionality coming soon!'); }
-    exportReport() { alert('📝 Export report coming soon!'); }
+    downloadCSV() {
+        try {
+            const rows = [['Timestamp', 'Voltage (V)', 'Current (A)', 'Power (W)', 'Frequency (Hz)', 'Power Factor', 'Energy (kWh)']];
+
+            // Add all historical data
+            this.historicalData.forEach(reading => {
+                rows.push([
+                    new Date(reading.timestamp).toLocaleString(),
+                    reading.voltage?.toFixed(2) || 'N/A',
+                    reading.current?.toFixed(3) || 'N/A',
+                    reading.power?.toFixed(2) || 'N/A',
+                    reading.frequency?.toFixed(1) || 'N/A',
+                    reading.powerFactor?.toFixed(2) || 'N/A',
+                    (reading.power * this.config.refreshInterval / 3600 / 1000).toFixed(3)
+                ]);
+            });
+
+            const csvContent = "data:text/csv;charset=utf-8," +
+                rows.map(e => e.join(",")).join("\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `energy_readings_${Date.now()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            console.log(`✅ Downloaded CSV with ${this.historicalData.length} readings`);
+        } catch (error) {
+            console.error('Error downloading CSV:', error);
+            alert('Failed to download CSV: ' + error.message);
+        }
+    }
+
+    updateChart(period) {
+        console.log('📊 Chart period changed to:', period);
+        // Future: Filter historicalData based on period
+        alert(`Chart period changed to: ${period}. Full implementation coming soon!`);
+    }
+
+    showHistoryView() {
+        if (this.historicalData.length === 0) {
+            alert('📜 No historical data available yet. Data will be collected as the app runs.');
+            return;
+        }
+
+        // Create a summary of historical data
+        const totalReadings = this.historicalData.length;
+        const avgPower = (this.historicalData.reduce((sum, r) => sum + (r.power || 0), 0) / totalReadings).toFixed(2);
+        const avgVoltage = (this.historicalData.reduce((sum, r) => sum + (r.voltage || 0), 0) / totalReadings).toFixed(2);
+        const maxPower = Math.max(...this.historicalData.map(r => r.power || 0)).toFixed(2);
+        const minPower = Math.min(...this.historicalData.map(r => r.power || 0)).toFixed(2);
+
+        const oldestReading = new Date(this.historicalData[0].timestamp).toLocaleString();
+        const newestReading = new Date(this.historicalData[totalReadings - 1].timestamp).toLocaleString();
+
+        const message = `📊 HISTORICAL DATA SUMMARY\n\n` +
+            `Total Readings: ${totalReadings}\n` +
+            `Time Range: ${oldestReading} to ${newestReading}\n\n` +
+            `Average Power: ${avgPower} W\n` +
+            `Average Voltage: ${avgVoltage} V\n` +
+            `Max Power: ${maxPower} W\n` +
+            `Min Power: ${minPower} W\n` +
+            `Total Energy: ${this.totalEnergy.toFixed(3)} kWh\n\n` +
+            `💡 Tip: Use "Download CSV" to export all data for detailed analysis.`;
+
+        alert(message);
+    }
+
+    shareData() {
+        if (this.historicalData.length === 0) {
+            alert('🔗 No data available to share yet.');
+            return;
+        }
+
+        const latestReading = this.historicalData[this.historicalData.length - 1];
+        const shareText = `⚡ Smart Energy Meter Reading\n\n` +
+            `🔋 Power: ${latestReading.power?.toFixed(2)} W\n` +
+            `⚡ Voltage: ${latestReading.voltage?.toFixed(2)} V\n` +
+            `📊 Current: ${latestReading.current?.toFixed(3)} A\n` +
+            `🌊 Frequency: ${latestReading.frequency?.toFixed(1)} Hz\n` +
+            `📈 Power Factor: ${latestReading.powerFactor?.toFixed(2)}\n` +
+            `💡 Total Energy: ${this.totalEnergy.toFixed(3)} kWh\n` +
+            `📅 ${new Date(latestReading.timestamp).toLocaleString()}`;
+
+        // Check if Web Share API is available
+        if (navigator.share) {
+            navigator.share({
+                title: 'Smart Energy Meter Reading',
+                text: shareText
+            }).then(() => {
+                console.log('✅ Data shared successfully');
+            }).catch((error) => {
+                console.log('Share cancelled or failed:', error);
+                this.fallbackShare(shareText);
+            });
+        } else {
+            this.fallbackShare(shareText);
+        }
+    }
+
+    fallbackShare(text) {
+        // Fallback: Copy to clipboard
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('📋 Data copied to clipboard!\n\nYou can now paste it anywhere.');
+            }).catch(() => {
+                // If clipboard fails, show the text in an alert
+                alert('📊 CURRENT READING:\n\n' + text + '\n\n(Sharing not supported on this device)');
+            });
+        } else {
+            alert('📊 CURRENT READING:\n\n' + text + '\n\n(Sharing not supported on this device)');
+        }
+    }
+
+    exportReport() {
+        if (this.historicalData.length === 0) {
+            alert('📝 No data available to export yet. Data will be collected as the app runs.');
+            return;
+        }
+
+        try {
+            // Calculate statistics
+            const totalReadings = this.historicalData.length;
+            const avgPower = (this.historicalData.reduce((sum, r) => sum + (r.power || 0), 0) / totalReadings).toFixed(2);
+            const avgVoltage = (this.historicalData.reduce((sum, r) => sum + (r.voltage || 0), 0) / totalReadings).toFixed(2);
+            const avgCurrent = (this.historicalData.reduce((sum, r) => sum + (r.current || 0), 0) / totalReadings).toFixed(3);
+            const avgFrequency = (this.historicalData.reduce((sum, r) => sum + (r.frequency || 0), 0) / totalReadings).toFixed(1);
+            const avgPF = (this.historicalData.reduce((sum, r) => sum + (r.powerFactor || 0), 0) / totalReadings).toFixed(2);
+
+            const maxPower = Math.max(...this.historicalData.map(r => r.power || 0)).toFixed(2);
+            const minPower = Math.min(...this.historicalData.map(r => r.power || 0)).toFixed(2);
+            const maxVoltage = Math.max(...this.historicalData.map(r => r.voltage || 0)).toFixed(2);
+            const minVoltage = Math.min(...this.historicalData.map(r => r.voltage || 0)).toFixed(2);
+
+            const oldestReading = new Date(this.historicalData[0].timestamp);
+            const newestReading = new Date(this.historicalData[totalReadings - 1].timestamp);
+            const durationHours = ((newestReading - oldestReading) / (1000 * 60 * 60)).toFixed(2);
+
+            // Estimate cost (assuming R2.50 per kWh - adjust as needed)
+            const costPerKWh = 2.50;
+            const estimatedCost = (this.totalEnergy * costPerKWh).toFixed(2);
+
+            // Generate HTML report
+            const reportHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Energy Meter Report - ${new Date().toLocaleDateString()}</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; background: #f5f5f5; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 30px; }
+        h1 { margin: 0; font-size: 32px; }
+        .subtitle { opacity: 0.9; margin-top: 10px; }
+        .section { background: white; padding: 25px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 10px; margin-top: 0; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .stat-card { background: #f9f9f9; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea; }
+        .stat-label { font-size: 12px; color: #666; text-transform: uppercase; }
+        .stat-value { font-size: 24px; font-weight: bold; color: #333; margin-top: 5px; }
+        .footer { text-align: center; color: #666; margin-top: 30px; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #667eea; color: white; }
+        tr:hover { background: #f5f5f5; }
+        .highlight { background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚡ Smart Energy Meter Report</h1>
+        <div class="subtitle">Generated on ${new Date().toLocaleString()}</div>
+        <div class="subtitle">Device: ${this.config.deviceId}</div>
+    </div>
+
+    <div class="section">
+        <h2>Summary Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Readings</div>
+                <div class="stat-value">${totalReadings}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Duration</div>
+                <div class="stat-value">${durationHours} hrs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Energy</div>
+                <div class="stat-value">${this.totalEnergy.toFixed(3)} kWh</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Est. Cost</div>
+                <div class="stat-value">R ${estimatedCost}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Average Values</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Power</div>
+                <div class="stat-value">${avgPower} W</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Voltage</div>
+                <div class="stat-value">${avgVoltage} V</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Current</div>
+                <div class="stat-value">${avgCurrent} A</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Frequency</div>
+                <div class="stat-value">${avgFrequency} Hz</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Power Factor</div>
+                <div class="stat-value">${avgPF}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Peak Values</h2>
+        <table>
+            <tr>
+                <th>Metric</th>
+                <th>Maximum</th>
+                <th>Minimum</th>
+            </tr>
+            <tr>
+                <td>Power</td>
+                <td>${maxPower} W</td>
+                <td>${minPower} W</td>
+            </tr>
+            <tr>
+                <td>Voltage</td>
+                <td>${maxVoltage} V</td>
+                <td>${minVoltage} V</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Monitoring Period</h2>
+        <div class="highlight">
+            <strong>Start:</strong> ${oldestReading.toLocaleString()}<br>
+            <strong>End:</strong> ${newestReading.toLocaleString()}<br>
+            <strong>Duration:</strong> ${durationHours} hours
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Recent Readings (Last 10)</h2>
+        <table>
+            <tr>
+                <th>Time</th>
+                <th>Power (W)</th>
+                <th>Voltage (V)</th>
+                <th>Current (A)</th>
+                <th>Frequency (Hz)</th>
+                <th>PF</th>
+            </tr>
+            ${this.historicalData.slice(-10).reverse().map(reading => `
+            <tr>
+                <td>${new Date(reading.timestamp).toLocaleTimeString()}</td>
+                <td>${reading.power?.toFixed(2) || 'N/A'}</td>
+                <td>${reading.voltage?.toFixed(2) || 'N/A'}</td>
+                <td>${reading.current?.toFixed(3) || 'N/A'}</td>
+                <td>${reading.frequency?.toFixed(1) || 'N/A'}</td>
+                <td>${reading.powerFactor?.toFixed(2) || 'N/A'}</td>
+            </tr>
+            `).join('')}
+        </table>
+    </div>
+
+    <div class="footer">
+        <p>Smart Energy Meter PWA | Report generated automatically</p>
+        <p>Cost estimate based on R${costPerKWh.toFixed(2)}/kWh</p>
+    </div>
+</body>
+</html>`;
+
+            // Create and download the report
+            const blob = new Blob([reportHTML], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `energy_report_${Date.now()}.html`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            console.log('✅ Report exported successfully');
+            alert('📝 Report exported successfully! Check your downloads folder.');
+
+        } catch (error) {
+            console.error('Error exporting report:', error);
+            alert('Failed to export report: ' + error.message);
+        }
+    }
 }
 
-// Initialize the app
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize app when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('DOM loaded, initializing app...');
+        window.energyMeterApp = new EnergyMeterApp();
+    });
+} else {
+    console.log('DOM already loaded, initializing app...');
     window.energyMeterApp = new EnergyMeterApp();
-});
+}

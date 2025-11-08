@@ -103,12 +103,18 @@ class PWAManager {
             installBtn.addEventListener('click', () => {
                 this.installApp();
             });
+            console.log('✓ Install button listener added');
+        } else {
+            console.warn('⚠️ Install button not found');
         }
 
         if (closeBanner) {
             closeBanner.addEventListener('click', () => {
                 this.hideInstallBanner();
             });
+            console.log('✓ Close banner listener added');
+        } else {
+            console.warn('⚠️ Close banner button not found');
         }
     }
 
@@ -116,6 +122,7 @@ class PWAManager {
         const banner = document.getElementById('install-banner');
         if (banner && !this.isInstalled) {
             banner.classList.remove('hidden');
+            console.log('✓ Install banner shown');
 
             // Auto-hide after 10 seconds if not interacted with
             setTimeout(() => {
@@ -130,12 +137,14 @@ class PWAManager {
         const banner = document.getElementById('install-banner');
         if (banner) {
             banner.classList.add('hidden');
+            console.log('✓ Install banner hidden');
         }
     }
 
     async installApp() {
         if (!this.deferredPrompt) {
             console.warn('⚠️ Install prompt not available');
+            alert('Installation not available. This feature works on mobile devices and some desktop browsers.');
             return;
         }
 
@@ -168,11 +177,15 @@ class PWAManager {
         const notification = document.createElement('div');
         notification.className = 'update-notification';
         notification.innerHTML = `
-            <div class="update-content">
-                <i class="fas fa-download"></i>
-                <span>New version available!</span>
-                <button id="update-btn" class="btn-primary">Update</button>
-                <button id="dismiss-update" class="btn-secondary">Later</button>
+            <div class="update-content" style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-download" style="color: var(--primary-color);"></i>
+                    <span style="font-weight: 500;">New version available!</span>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="update-btn" class="btn-primary" style="flex: 1;">Update</button>
+                    <button id="dismiss-update" class="btn-secondary" style="flex: 1;">Later</button>
+                </div>
             </div>
         `;
 
@@ -182,25 +195,34 @@ class PWAManager {
             top: 20px;
             right: 20px;
             background: var(--bg-card);
-            border: 1px solid var(--primary-color);
-            border-radius: var(--border-radius);
-            padding: var(--spacing-md);
-            box-shadow: var(--shadow-medium);
-            z-index: 1000;
-            max-width: 300px;
+            border: 2px solid var(--primary-color);
+            border-radius: var(--border-radius-large);
+            padding: var(--spacing-lg);
+            box-shadow: var(--shadow-strong);
+            z-index: 3000;
+            max-width: 350px;
+            animation: slideInRight 0.3s ease;
         `;
 
         document.body.appendChild(notification);
 
         // Handle update button click
-        document.getElementById('update-btn').addEventListener('click', () => {
-            this.applyUpdate();
-        });
+        const updateBtn = document.getElementById('update-btn');
+        const dismissBtn = document.getElementById('dismiss-update');
 
-        // Handle dismiss button click
-        document.getElementById('dismiss-update').addEventListener('click', () => {
-            document.body.removeChild(notification);
-        });
+        if (updateBtn) {
+            updateBtn.addEventListener('click', () => {
+                this.applyUpdate();
+            });
+        }
+
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', () => {
+                if (document.body.contains(notification)) {
+                    document.body.removeChild(notification);
+                }
+            });
+        }
 
         // Auto-dismiss after 15 seconds
         setTimeout(() => {
@@ -230,11 +252,9 @@ class PWAManager {
         let permission = Notification.permission;
 
         if (permission === 'default') {
-            // Could ask for permission here, but better to do it when user requests it
             console.log('📧 Push notifications permission: default (not requested)');
         } else if (permission === 'granted') {
             console.log('✅ Push notifications permission: granted');
-            // Could setup push subscription here
         } else {
             console.log('❌ Push notifications permission: denied');
         }
@@ -291,7 +311,6 @@ class PWAManager {
 
     trackInstallation() {
         // Track PWA installation for analytics
-        // You can integrate with Google Analytics, Firebase, etc.
         console.log('📊 Tracking PWA installation');
 
         // Example: Send to analytics
@@ -303,14 +322,13 @@ class PWAManager {
         }
     }
 
-    // Check if device supports PWA features
     checkPWASupport() {
         const features = {
             serviceWorker: 'serviceWorker' in navigator,
             pushNotifications: 'Notification' in window && 'serviceWorker' in navigator,
-            backgroundSync: 'serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype,
+            backgroundSync: 'serviceWorker' in navigator && 'sync' in ServiceWorkerRegistration.prototype,
             webShare: 'share' in navigator,
-            installPrompt: true, // Will be set to false if beforeinstallprompt never fires
+            installPrompt: true,
             persistentStorage: 'storage' in navigator && 'persist' in navigator.storage,
             deviceMemory: 'deviceMemory' in navigator,
             networkInformation: 'connection' in navigator
@@ -320,7 +338,6 @@ class PWAManager {
         return features;
     }
 
-    // Request persistent storage
     async requestPersistentStorage() {
         if ('storage' in navigator && 'persist' in navigator.storage) {
             try {
@@ -335,7 +352,6 @@ class PWAManager {
         return false;
     }
 
-    // Get storage usage information
     async getStorageInfo() {
         if ('storage' in navigator && 'estimate' in navigator.storage) {
             try {
@@ -358,7 +374,6 @@ class PWAManager {
         return null;
     }
 
-    // Handle network status changes
     setupNetworkMonitoring() {
         if ('connection' in navigator) {
             const connection = navigator.connection;
@@ -372,14 +387,16 @@ class PWAManager {
 
                 // Adjust app behavior based on connection
                 if (connection.saveData || connection.effectiveType === 'slow-2g') {
-                    // Reduce update frequency for slow connections
                     if (window.energyMeterApp) {
                         console.log('⚡ Reducing update frequency for slow connection');
                         window.energyMeterApp.config.refreshInterval = Math.max(
                             window.energyMeterApp.config.refreshInterval * 2,
                             60
                         );
-                        window.energyMeterApp.startAutoRefresh();
+                        if (window.energyMeterApp.pollingTimer) {
+                            clearTimeout(window.energyMeterApp.pollingTimer);
+                            window.energyMeterApp.startPolling();
+                        }
                     }
                 }
             };
@@ -392,9 +409,8 @@ class PWAManager {
         }
     }
 
-    // Handle background sync (when supported)
     async setupBackgroundSync() {
-        if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
+        if ('serviceWorker' in navigator && 'sync' in ServiceWorkerRegistration.prototype) {
             try {
                 const registration = await navigator.serviceWorker.ready;
                 await registration.sync.register('background-sync');
@@ -406,18 +422,31 @@ class PWAManager {
     }
 }
 
-// Initialize PWA Manager
-document.addEventListener('DOMContentLoaded', () => {
-    window.pwaManager = new PWAManager();
+// Initialize PWA Manager - works whether DOM is ready or not
+function initializePWA() {
+    try {
+        window.pwaManager = new PWAManager();
 
-    // Setup additional PWA features
-    window.pwaManager.setupNetworkMonitoring();
-    window.pwaManager.setupBackgroundSync();
-    window.pwaManager.requestPersistentStorage();
+        // Setup additional PWA features
+        setTimeout(() => {
+            if (window.pwaManager) {
+                window.pwaManager.setupNetworkMonitoring();
+                window.pwaManager.setupBackgroundSync();
+                window.pwaManager.requestPersistentStorage();
+                window.pwaManager.checkPWASupport();
+            }
+        }, 1000);
+    } catch (error) {
+        console.error('❌ PWA Manager initialization failed:', error);
+    }
+}
 
-    // Check PWA support
-    window.pwaManager.checkPWASupport();
-});
+// Initialize immediately or wait for DOM
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializePWA);
+} else {
+    initializePWA();
+}
 
 // Handle service worker messages
 if ('serviceWorker' in navigator) {
@@ -434,7 +463,6 @@ if ('serviceWorker' in navigator) {
 // Handle PWA lifecycle events
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden && window.pwaManager) {
-        // App became visible, could sync data
         console.log('👁️ App became visible');
     }
 });
@@ -442,7 +470,6 @@ document.addEventListener('visibilitychange', () => {
 // Handle app beforeunload (cleanup)
 window.addEventListener('beforeunload', () => {
     console.log('👋 App is being unloaded');
-    // Cleanup if needed
 });
 
 // Export for global access

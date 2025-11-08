@@ -4,24 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Energy Meter</title>
-    
+
     <meta name="theme-color" content="#2196F3">
     <meta name="description" content="Monitor your energy consumption in real-time">
-    
+
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png">
     <link rel="shortcut icon" href="/icons/favicon.ico">
-   
+
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
-    
+
     <link rel="manifest" href="/manifest.json">
-    
+
     <link rel="stylesheet" href="/css/styles.css">
-   
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    
+
     <div id="loading-screen" class="loading-screen">
         <div class="loading-spinner">
             <i class="fas fa-bolt"></i>
@@ -29,7 +29,7 @@
         <p>Loading Energy Data...</p>
     </div>
 
-    
+
     <div id="install-banner" class="install-banner hidden">
         <div class="install-content">
             <i class="fas fa-download"></i>
@@ -39,9 +39,9 @@
         </div>
     </div>
 
-   
+
     <div class="container">
-       
+
         <header class="header">
             <div class="header-content">
                 <div class="header-title">
@@ -60,7 +60,7 @@
             </div>
         </header>
 
-        
+
         <div class="status-bar">
             <div class="status-item">
                 <i class="fas fa-wifi" id="connection-status"></i>
@@ -72,7 +72,7 @@
             </div>
         </div>
 
-       
+
         <section class="current-readings">
             <h2>Current Readings</h2>
             <div class="readings-grid">
@@ -144,7 +144,7 @@
             </div>
         </section>
 
-        
+
         <section class="charts-section">
             <div class="section-header">
                 <h2>Historical Data</h2>
@@ -160,7 +160,7 @@
             </div>
         </section>
 
-        
+
         <section class="quick-actions">
             <h2>Quick Actions</h2>
             <div class="actions-grid">
@@ -184,7 +184,7 @@
         </section>
     </div>
 
-   
+
     <div id="settings-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -223,10 +223,20 @@
         </div>
     </div>
 
-    
-    <script src="/js/auth.js"></script>
+    <!-- ============================================ -->
+    <!-- ONLY CHANGE: Fixed script loading order     -->
+    <!-- ============================================ -->
+    <!-- 1. Load Chart.js FIRST (required dependency) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
+    <!-- 2. Load main app.js (now with fixed code) -->
     <script src="/js/app.js"></script>
+
+    <!-- 3. Load auth.js for authentication -->
+    <script src="/js/auth.js"></script>
+
+    <!-- 4. Load PWA functionality (install banner, service worker) -->
     <script src="/js/pwa.js"></script>
+
 </body>
 </html>

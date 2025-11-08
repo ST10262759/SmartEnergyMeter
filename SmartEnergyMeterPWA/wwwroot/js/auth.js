@@ -1,22 +1,32 @@
 ﻿// wwwroot/js/auth.js
-// Add this script to check authentication before loading the main app
+// Authentication manager for Smart Energy Meter
 
 class AuthManager {
     constructor() {
         this.isAuthenticated = false;
         this.username = null;
-        this.init();
+        this.initPromise = this.init();
     }
 
-    init() {
+    async init() {
+        // Wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            await new Promise(resolve => {
+                document.addEventListener('DOMContentLoaded', resolve);
+            });
+        }
+
         // Check authentication status
         this.checkAuth();
 
-        // Add logout functionality
-        this.setupLogout();
+        // Only proceed if authenticated
+        if (this.isAuthenticated) {
+            // Add logout functionality
+            this.setupLogout();
 
-        // Monitor session
-        this.monitorSession();
+            // Monitor session
+            this.monitorSession();
+        }
     }
 
     checkAuth() {
@@ -30,7 +40,7 @@ class AuthManager {
                 localStorage.getItem('rememberedUsername');
 
             // Update UI with username if element exists
-            this.updateUserDisplay();
+            setTimeout(() => this.updateUserDisplay(), 100);
 
             console.log('✅ User authenticated:', this.username);
         } else {
@@ -52,33 +62,51 @@ class AuthManager {
                 gap: 10px;
                 margin-left: auto;
                 margin-right: 10px;
-                color: var(--text-color);
+                color: var(--text-primary);
                 font-size: 14px;
             `;
             userDisplay.innerHTML = `
-                <i class="fas fa-user-circle" style="font-size: 20px;"></i>
+                <i class="fas fa-user-circle" style="font-size: 20px; color: var(--primary-color);"></i>
                 <span>${this.username}</span>
-                <button id="logout-btn" style="
+                <button id="logout-btn" class="action-btn" style="
                     background: transparent;
                     border: 1px solid var(--border-color);
-                    border-radius: 4px;
-                    padding: 5px 10px;
+                    border-radius: 8px;
+                    padding: 8px 12px;
                     cursor: pointer;
                     font-size: 12px;
                     margin-left: 10px;
-                    color: var(--text-color);
-                ">
+                    color: var(--text-primary);
+                    transition: all 0.2s ease;
+                " title="Logout">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
             `;
 
             const headerActions = header.querySelector('.header-actions');
-            header.insertBefore(userDisplay, headerActions);
+            if (headerActions) {
+                header.insertBefore(userDisplay, headerActions);
 
-            // Add logout event listener
-            document.getElementById('logout-btn').addEventListener('click', () => {
-                this.logout();
-            });
+                // Add logout event listener
+                const logoutBtn = document.getElementById('logout-btn');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', () => this.logout());
+
+                    // Add hover effect
+                    logoutBtn.addEventListener('mouseenter', function () {
+                        this.style.background = 'var(--danger-color)';
+                        this.style.color = 'white';
+                        this.style.borderColor = 'var(--danger-color)';
+                    });
+                    logoutBtn.addEventListener('mouseleave', function () {
+                        this.style.background = 'transparent';
+                        this.style.color = 'var(--text-primary)';
+                        this.style.borderColor = 'var(--border-color)';
+                    });
+                }
+
+                console.log('✅ User display added to header');
+            }
         }
     }
 
@@ -96,7 +124,7 @@ class AuthManager {
         sessionStorage.removeItem('loginTime');
 
         // Optionally clear remember me
-        const confirmClearRemember = confirm('Do you want to forget this device?');
+        const confirmClearRemember = confirm('Do you want to forget this device and require login next time?');
         if (confirmClearRemember) {
             localStorage.removeItem('rememberLogin');
             localStorage.removeItem('rememberedUsername');
@@ -111,12 +139,12 @@ class AuthManager {
     redirectToLogin() {
         // Save current page for redirect after login (optional)
         const currentPage = window.location.pathname;
-        if (currentPage !== '/login.html' && currentPage !== '/') {
+        if (currentPage !== '/login.html' && currentPage !== '/' && currentPage !== '/index.html') {
             sessionStorage.setItem('redirectAfterLogin', currentPage);
         }
 
         // Redirect
-        window.location.href = 'login.html';
+        window.location.href = '/login.html';
     }
 
     monitorSession() {
@@ -164,14 +192,12 @@ class AuthManager {
     }
 }
 
-// Initialize authentication check immediately
-const authManager = new AuthManager();
-
-// Export for global access
-window.authManager = authManager;
-
-// Prevent access if not authenticated
-if (!authManager.isAuthenticated) {
-    // Stop execution of other scripts
-    throw new Error('Authentication required');
+// Initialize authentication check
+try {
+    const authManager = new AuthManager();
+    window.authManager = authManager;
+    console.log('✅ Auth manager initialized');
+} catch (error) {
+    console.error('❌ Auth manager initialization failed:', error);
+    // Don't block other scripts from loading
 }
